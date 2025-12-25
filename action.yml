@@ -1,0 +1,20 @@
+name: '@actalog/create-datetime-tag'
+author: Gabriel Rufino <contato@gabrielrufino.com>
+description: 'Creates and pushes a git tag based on the current date and time.'
+branding:
+  icon: tag
+  color: orange
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        TAG=$(date +%Y-%m-%d.%H-%M)
+        
+        echo "Creating tag: $TAG"
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "$TAG" -m "Auto-generated tag for $TAG"
+        git push origin "$TAG"
+        echo "Tag $TAG created and pushed successfully!"
