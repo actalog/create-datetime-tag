@@ -5,13 +5,20 @@ branding:
   icon: tag
   color: orange
 
+outputs:
+  tag:
+    description: 'The created tag name'
+    value: ${{ steps.create-tag.outputs.tag }}
+
 runs:
   using: composite
   steps:
-    - shell: bash
+    - id: create-tag
+      shell: bash
       run: |
         TAG=$(date +%Y-%m-%d.%H-%M)
         
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
         echo "Creating tag: $TAG"
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"

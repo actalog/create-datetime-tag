@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  - push
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - id: create-datetime-tag
+        uses: ./
+      - run: |
+          TAG="${{ steps.create-datetime-tag.outputs.tag }}"
+          echo "Tag created: $TAG"
+          
+          if [ -z "$TAG" ]; then
+            echo "❌ Error: Tag output is empty"
+            exit 1
+          fi
+          
+          # Verify tag exists locally
+          if ! git tag -l | grep -q "^$TAG$"; then
+            echo "❌ Error: Tag $TAG not found locally"
+            exit 1
+          fi
+          echo "✅ Tag exists locally"
+          
+          # Verify tag was pushed to remote
+          if ! git ls-remote --tags origin | grep -q "refs/tags/$TAG$"; then
+            echo "❌ Error: Tag $TAG not found on remote"
+            exit 1
+          fi
+          echo "✅ Tag exists on remote"
+          
+          echo "✅ All tests passed!"
