@@ -16,12 +16,17 @@ runs:
     - id: create-tag
       shell: bash
       run: |
-        TAG=$(date +%Y-%m-%d.%H-%M)
+        TAG=$(date +%Y-%m-%d.%H-%M-%S)
         
         echo "tag=$TAG" >> $GITHUB_OUTPUT
         echo "Creating tag: $TAG"
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git tag -a "$TAG" -m "Auto-generated tag for $TAG"
-        git push origin "$TAG"
-        echo "Tag $TAG created and pushed successfully!"
+
+        if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+          echo "Tag $TAG already exists. Skipping creation and push."
+        else
+          git tag -a "$TAG" -m "Auto-generated tag for $TAG"
+          git push origin "$TAG"
+          echo "Tag $TAG created and pushed successfully!"
+        fi
