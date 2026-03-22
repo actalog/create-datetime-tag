@@ -12,8 +12,18 @@ jobs:
     runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
+      - name: Setup Mock Date
+        run: |
+          mkdir -p $HOME/mock-bin
+          echo '#!/bin/bash' > $HOME/mock-bin/date
+          echo 'echo "2025-01-01.00-00-00"' >> $HOME/mock-bin/date
+          chmod +x $HOME/mock-bin/date
+          echo "$HOME/mock-bin" >> $GITHUB_PATH
+
       - id: create-datetime-tag-1
+        name: Create First Tag (Mocked)
         uses: ./
+
       - name: Verify Tag 1 Format and Presence
         run: |
           TAG="${{ steps.create-datetime-tag-1.outputs.tag }}"
@@ -37,16 +47,22 @@ jobs:
           fi
           echo "✅ Tag 1 exists on remote"
 
-      - name: Test Idempotency (Run Again)
+      - name: Test Idempotency and Collision Handling (Run Again)
         id: create-datetime-tag-2
-        uses: ./
-      - name: Verify Tag 2 Presence
+        uses: ./ # Second run should see it exists and skip push (no error)
+        
+      - name: Verify Tag 2 Presence (Idempotency)
         run: |
           TAG="${{ steps.create-datetime-tag-2.outputs.tag }}"
           echo "Tag 2 created: $TAG"
           
           if [ -z "$TAG" ]; then
             echo "❌ Error: Tag 2 output is empty"
+            exit 1
+          fi
+          
+          if [ "$TAG" != "2025-01-01.00-00-00" ]; then
+            echo "❌ Error: Mock date failed or changed, tag is $TAG"
             exit 1
           fi
           
@@ -58,27 +74,8 @@ jobs:
           
           echo "✅ Idempotency test passed (no failures on consecutive runs)"
 
-      - name: Setup Mock Date
+      - name: Cleanup Test Tags
+        if: always()
         run: |
-          mkdir -p $HOME/mock-bin
-          echo '#!/bin/bash' > $HOME/mock-bin/date
-          echo 'echo "2025-01-01.00-00-00"' >> $HOME/mock-bin/date
-          chmod +x $HOME/mock-bin/date
-          echo "$HOME/mock-bin" >> $GITHUB_PATH
-
-      - name: Test Collision Handling (Mocked)
-        uses: ./ # First run creates the tag
-      
-      - name: Test Collision Handling (Mocked Run 2)
-        id: collision-test
-        uses: ./ # Second run should see it exists and skip push (no error)
-
-      - name: Verify Mock Collision
-        run: |
-          TAG="${{ steps.collision-test.outputs.tag }}"
-          if [ "$TAG" != "2025-01-01.00-00-00" ]; then
-            echo "❌ Error: Mock date failed, tag is $TAG"
-            exit 1
-          fi
-          echo "✅ Mock date worked: $TAG"
-          echo "✅ Collision test passed (second run succeeded)"
+          git push --delete origin "2025-01-01.00-00-00" || true
+          git tag -d "2025-01-01.00-00-00" || true
