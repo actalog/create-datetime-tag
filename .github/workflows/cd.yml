@@ -1,0 +1,17 @@
+name: CD
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v5
+      - uses: softprops/action-gh-release@v2

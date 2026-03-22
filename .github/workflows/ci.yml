@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  - push
+
+permissions:
+  contents: write
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Mock Date
+        run: |
+          mkdir -p $HOME/mock-bin
+          echo '#!/bin/bash' > $HOME/mock-bin/date
+          echo 'echo "2025-01-01.00-00-00"' >> $HOME/mock-bin/date
+          chmod +x $HOME/mock-bin/date
+          echo "$HOME/mock-bin" >> $GITHUB_PATH
+
+      - id: create-datetime-tag-1
+        name: Create First Tag (Mocked)
+        uses: ./
+
+      - name: Verify Tag 1 Format and Presence
+        run: |
+          TAG="${{ steps.create-datetime-tag-1.outputs.tag }}"
+          echo "Tag 1 created: $TAG"
+          
+          if [[ ! "$TAG" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\.[0-9]{2}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "❌ Error: Tag $TAG does not match expected format with seconds (YYYY-MM-DD.HH-MM-SS)"
+            exit 1
+          fi
+          echo "✅ Tag format is correct"
+          
+          if ! git tag -l | grep -q "^$TAG$"; then
+            echo "❌ Error: Tag $TAG not found locally"
+            exit 1
+          fi
+          echo "✅ Tag 1 exists locally"
+          
+          if ! git ls-remote --tags origin | grep -q "refs/tags/$TAG$"; then
+            echo "❌ Error: Tag $TAG not found on remote"
+            exit 1
+          fi
+          echo "✅ Tag 1 exists on remote"
+
+      - name: Test Idempotency and Collision Handling (Run Again)
+        id: create-datetime-tag-2
+        uses: ./ # Second run should see it exists and skip push (no error)
+        
+      - name: Verify Tag 2 Presence (Idempotency)
+        run: |
+          TAG="${{ steps.create-datetime-tag-2.outputs.tag }}"
+          echo "Tag 2 created: $TAG"
+          
+          if [ -z "$TAG" ]; then
+            echo "❌ Error: Tag 2 output is empty"
+            exit 1
+          fi
+          
+          if [ "$TAG" != "2025-01-01.00-00-00" ]; then
+            echo "❌ Error: Mock date failed or changed, tag is $TAG"
+            exit 1
+          fi
+          
+          if ! git tag -l | grep -q "^$TAG$"; then
+            echo "❌ Error: Tag $TAG not found locally"
+            exit 1
+          fi
+          echo "✅ Tag 2 exists locally"
+          
+          echo "✅ Idempotency test passed (no failures on consecutive runs)"
+
+      - name: Cleanup Test Tags
+        if: always()
+        run: |
+          git push --delete origin "2025-01-01.00-00-00" || true
+          git tag -d "2025-01-01.00-00-00" || true
